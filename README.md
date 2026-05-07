@@ -1,0 +1,323 @@
+# OneTrust Consent MCP Server
+
+Standalone Flask-based MCP-style tool server for listing OneTrust consent and preference records. AI agents can initialize the server, discover available tools with JSON schemas, and invoke tools dynamically.
+
+```text
+AI Agent / n8n / Copilot / Claude / Custom LLM
+        -> MCP HTTP endpoints
+        -> OneTrust Consent MCP Server
+        -> OneTrust Consent APIs
+        -> structured tool result
+```
+
+This is not a REST CRUD proxy. The public interface is a tool protocol surface.
+
+## Capabilities
+
+- `POST /mcp/initialize`
+- `GET /mcp/tools`
+- `POST /mcp/tools/call`
+- Dynamic tool discovery from `app/tools`
+- JSON schema input validation for every tool
+- OAuth2 client credentials flow for OneTrust
+- Automatic bearer token reuse and refresh
+- CRM retries, timeouts, and structured errors
+- Structured JSON logging
+- Docker and Docker Compose support
+- Stateless runtime ready for future Redis/PostgreSQL integration
+
+## Project Structure
+
+```text
+app/
+  config/
+    settings.py
+  mcp/
+    protocol.py
+    registry.py
+    schemas.py
+  routes/
+    health.py
+    mcp_routes.py
+  services/
+    consent_service.py
+    crm_service.py
+    onetrust_client.py
+    onetrust_oauth.py
+    oauth.py
+    oce_client.py
+  tools/
+    base.py
+    get_account_details.py
+    get_hcps_by_specialty.py
+    get_interaction_history.py
+    get_profile.py
+    get_hcp_consent.py
+    search_hcp.py
+  utils/
+    errors.py
+    logging.py
+    response.py
+    security.py
+    validation.py
+Dockerfile
+docker-compose.yml
+requirements.txt
+.env
+run.py
+```
+
+## Tools
+
+Active MCP tool for now:
+
+- `list_onetrust_consents`
+
+OCE CRM tools are present in `app/tools`, but disabled with `ENABLED = False` for now.
+
+Each tool defines:
+
+- `name`
+- `description`
+- `inputSchema`
+- Python execution handler
+
+Tools are auto-registered from modules in `app/tools`. To add a new tool, create a new file with a `register(registry)` function and register a `ToolDefinition`.
+
+## Environment
+
+Keep your local configuration in `.env`.
+
+Minimum OneTrust OAuth configuration for consent checks:
+
+```env
+ONETRUST_BASE_URL=https://your-tenant.onetrust.com
+ONETRUST_TOKEN_URL=https://your-tenant.onetrust.com/api/access/v1/oauth/token
+ONETRUST_CLIENT_ID=your-client-id
+ONETRUST_CLIENT_SECRET=your-client-secret
+ONETRUST_SCOPE=CONSENT_READ
+ONETRUST_DEFAULT_PURPOSE_ID=your-purpose-id
+ONETRUST_TRUST_ENV_PROXY=false
+```
+
+Do not use your personal OneTrust email/password in this server. Use them only to log in to the OneTrust UI and create/manage OAuth client credentials. The server should use OAuth client credentials with least-privilege scopes.
+
+`MCP_API_KEY` is optional for local development. If set, callers must send:
+
+```http
+X-API-Key: your-key
+```
+
+## Run Locally
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python run.py
+```
+
+Server URL:
+
+```text
+http://localhost:8000
+```
+
+Health check:
+
+```http
+GET /health
+```
+
+## MCP Requests
+
+### Initialize
+
+```http
+POST /mcp/initialize
+```
+
+Response:
+
+```json
+{
+  "protocolVersion": "2024-11-05",
+  "serverInfo": {
+    "name": "oce-crm-mcp-server",
+    "version": "1.0.0"
+  },
+  "capabilities": {
+    "tools": {
+      "listChanged": false
+    }
+  }
+}
+```
+
+### List Tools
+
+```http
+GET /mcp/tools
+```
+
+Response:
+
+```json
+{
+  "tools": [
+    {
+      "name": "list_onetrust_consents",
+      "description": "List OneTrust consent and preference profiles.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "purpose_guid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "include_effective_status": {
+            "type": "boolean",
+            "default": true
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
+```
+
+### Call Tool
+
+```http
+POST /mcp/tools/call
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "tool": "list_onetrust_consents",
+  "arguments": {
+    "include_effective_status": true,
+    "page": 0,
+    "size": 20
+  }
+}
+```
+
+If `purpose_guid` is omitted, the server uses `ONETRUST_DEFAULT_PURPOSE_ID` from `.env`.
+
+Response:
+
+```json
+{
+  "tool": "list_onetrust_consents",
+  "content": [
+    {
+      "type": "json",
+      "json": {
+        "items": []
+      }
+    }
+  ],
+  "isError": false
+}
+```
+
+## Tool Mapping
+
+The active OneTrust MCP tool calls `ConsentService`, which calls `OneTrustClient`.
+
+```text
+/mcp/tools/call
+  -> ToolRegistry.call()
+  -> app/tools/<tool>.py handler
+  -> ConsentService
+  -> OneTrustClient
+  -> OneTrust Consent API
+```
+
+Disabled OCE paths kept for later:
+
+- `GET /api/{OCE_API_VERSION}/hcps/search`
+- `GET /api/{OCE_API_VERSION}/hcps/{hcp_id}/profile`
+- `GET /api/{OCE_API_VERSION}/hcps`
+- `GET /api/{OCE_API_VERSION}/accounts/{account_id}`
+- `GET /api/{OCE_API_VERSION}/hcps/{hcp_id}/interactions`
+
+OneTrust consent tool default path:
+
+- `GET /api/consentmanager/v1/datasubjects/profiles`
+
+The tool sends optional `purposeGuid`, `includeEffectiveStatus`, `properties=ignoreCount`, `page`, and `size`.
+
+## Test With Postman
+
+1. Start the server with `python run.py`.
+2. Send `POST http://localhost:8000/mcp/initialize`.
+3. Send `GET http://localhost:8000/mcp/tools`.
+4. Send `POST http://localhost:8000/mcp/tools/call` with a tool request body.
+5. If `MCP_API_KEY` is set, add `X-API-Key` to each MCP request.
+
+## Docker
+
+```powershell
+docker compose up --build
+```
+
+The container reads `.env`, exposes port `8000`, and runs with Gunicorn.
+
+Stop:
+
+```powershell
+docker compose down
+```
+
+## Deploy Later
+
+Render/Railway:
+
+- Connect GitHub repo.
+- Use Docker deployment.
+- Add all environment variables in the platform dashboard.
+- Expose port from `$PORT` or `8000` depending on platform configuration.
+
+AWS:
+
+- Use ECS Fargate, App Runner, or Elastic Beanstalk.
+- Store secrets in AWS Secrets Manager or SSM Parameter Store.
+- Put the service behind HTTPS, API Gateway/ALB, and WAF if public.
+
+## Security
+
+- Do not commit `.env`.
+- Keep OneTrust credentials only on the MCP server.
+- Use OAuth2 client credentials for OneTrust; personal email/password should not be used for server API calls.
+- Set `MCP_API_KEY` before public deployment.
+- Use HTTPS in every deployed environment.
+- Apply least-privilege OneTrust scopes.
+- Avoid logging PHI/PII.
+- Add rate limiting before external exposure.
+
+## Future Scaling
+
+- Redis for distributed OAuth token cache and rate limits.
+- PostgreSQL for audit/event history if required.
+- OpenTelemetry for traces across agent, MCP server, and OneTrust.
+- More tool modules under `app/tools`.
+- Contract tests with mocked OCE CRM responses.

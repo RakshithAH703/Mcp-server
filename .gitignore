@@ -1,0 +1,13 @@
+.env
+server*.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.coverage
+.idea/
+.vscode/
