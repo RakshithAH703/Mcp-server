@@ -12,12 +12,6 @@ def register(registry):
             input_schema={
                 "type": "object",
                 "properties": {
-                    "purpose_guid": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 80,
-                        "description": "Optional OneTrust purpose GUID to filter consent for a specific purpose.",
-                    },
                     "include_effective_status": {
                         "type": "boolean",
                         "default": True,

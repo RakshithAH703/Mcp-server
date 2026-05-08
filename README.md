@@ -21,7 +21,7 @@ This is not a REST CRUD proxy. The public interface is a tool protocol surface.
 - JSON schema input validation for every tool
 - OAuth2 client credentials flow for OneTrust
 - Automatic bearer token reuse and refresh
-- CRM retries, timeouts, and structured errors
+- OneTrust retries, timeouts, and structured errors
 - Structured JSON logging
 - Docker and Docker Compose support
 - Stateless runtime ready for future Redis/PostgreSQL integration
@@ -87,9 +87,13 @@ ONETRUST_TOKEN_URL=https://your-tenant.onetrust.com/api/access/v1/oauth/token
 ONETRUST_CLIENT_ID=your-client-id
 ONETRUST_CLIENT_SECRET=your-client-secret
 ONETRUST_SCOPE=CONSENT_READ
-ONETRUST_DEFAULT_PURPOSE_ID=your-purpose-id
+ONETRUST_PURPOSE_NAME=
+ONETRUST_PURPOSE_NAME_CONTAINS=mcp
+ONETRUST_DEFAULT_PURPOSE_ID=
 ONETRUST_TRUST_ENV_PROXY=false
 ```
+
+Purpose resolution is dynamic. If `ONETRUST_PURPOSE_NAME` is set, the server finds that exact OneTrust purpose label/name. Otherwise it searches for purposes whose label/name contains `ONETRUST_PURPOSE_NAME_CONTAINS`, which defaults to `mcp`. If multiple purposes match, the server returns a clear configuration error instead of guessing. `ONETRUST_DEFAULT_PURPOSE_ID` is only a fallback for older deployments.
 
 Do not use your personal OneTrust email/password in this server. Use them only to log in to the OneTrust UI and create/manage OAuth client credentials. The server should use OAuth client credentials with least-privilege scopes.
 
@@ -162,11 +166,6 @@ Response:
       "inputSchema": {
         "type": "object",
         "properties": {
-          "purpose_guid": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 80
-          },
           "include_effective_status": {
             "type": "boolean",
             "default": true
@@ -211,7 +210,7 @@ Request:
 }
 ```
 
-If `purpose_guid` is omitted, the server uses `ONETRUST_DEFAULT_PURPOSE_ID` from `.env`.
+The caller does not need to send a purpose ID. The server dynamically resolves the OneTrust purpose and sends the resolved `purposeGuid` internally.
 
 Response:
 
@@ -243,11 +242,15 @@ The active OneTrust MCP tool calls `ConsentService`, which calls `OneTrustClient
   -> OneTrust Consent API
 ```
 
-OneTrust consent tool default path:
+OneTrust purpose discovery path:
+
+- `GET /api/consentmanager/v1/purposes`
+
+OneTrust consent tool path:
 
 - `GET /api/consentmanager/v1/datasubjects/profiles`
 
-The tool sends optional `purposeGuid`, `includeEffectiveStatus`, `properties=ignoreCount`, `page`, and `size`.
+The tool resolves `purposeGuid` dynamically, then sends `purposeGuid`, `includeEffectiveStatus`, `properties=ignoreCount`, `page`, and `size`.
 
 ## Test With Postman
 

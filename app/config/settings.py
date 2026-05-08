@@ -17,6 +17,8 @@ class Settings:
     onetrust_client_secret: str | None
     onetrust_scope: str | None
     onetrust_default_purpose_id: str | None
+    onetrust_purpose_name: str | None
+    onetrust_purpose_name_contains: str
     onetrust_timeout_seconds: int
     onetrust_retry_total: int
     onetrust_retry_backoff_factor: float
@@ -37,6 +39,8 @@ class Settings:
             onetrust_client_secret=os.getenv("ONETRUST_CLIENT_SECRET") or None,
             onetrust_scope=os.getenv("ONETRUST_SCOPE") or None,
             onetrust_default_purpose_id=os.getenv("ONETRUST_DEFAULT_PURPOSE_ID") or None,
+            onetrust_purpose_name=os.getenv("ONETRUST_PURPOSE_NAME") or None,
+            onetrust_purpose_name_contains=os.getenv("ONETRUST_PURPOSE_NAME_CONTAINS", "mcp"),
             onetrust_timeout_seconds=int(os.getenv("ONETRUST_TIMEOUT_SECONDS", "20")),
             onetrust_retry_total=int(os.getenv("ONETRUST_RETRY_TOTAL", "3")),
             onetrust_retry_backoff_factor=float(os.getenv("ONETRUST_RETRY_BACKOFF_FACTOR", "0.5")),
