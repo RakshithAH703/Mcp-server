@@ -1,7 +1,7 @@
 services:
-  oce-mcp-server:
+  onetrust-consent-mcp-server:
     build: .
-    container_name: oce-mcp-server
+    container_name: onetrust-consent-mcp-server
     env_file:
       - .env
     ports:

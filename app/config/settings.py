@@ -11,17 +11,6 @@ class Settings:
     port: int
     log_level: str
     mcp_api_key: str | None
-    oce_base_url: str | None
-    oce_api_version: str
-    oce_timeout_seconds: int
-    oce_retry_total: int
-    oce_retry_backoff_factor: float
-    oce_auth_type: str
-    oce_token_url: str | None
-    oce_client_id: str | None
-    oce_client_secret: str | None
-    oce_scope: str | None
-    oce_api_token: str | None
     onetrust_base_url: str | None
     onetrust_token_url: str | None
     onetrust_client_id: str | None
@@ -42,17 +31,6 @@ class Settings:
             port=int(os.getenv("PORT", "8000")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
             mcp_api_key=os.getenv("MCP_API_KEY") or None,
-            oce_base_url=_optional_url("OCE_BASE_URL"),
-            oce_api_version=os.getenv("OCE_API_VERSION", "v1").strip("/"),
-            oce_timeout_seconds=int(os.getenv("OCE_TIMEOUT_SECONDS", "20")),
-            oce_retry_total=int(os.getenv("OCE_RETRY_TOTAL", "3")),
-            oce_retry_backoff_factor=float(os.getenv("OCE_RETRY_BACKOFF_FACTOR", "0.5")),
-            oce_auth_type=os.getenv("OCE_AUTH_TYPE", "oauth2_client_credentials"),
-            oce_token_url=os.getenv("OCE_TOKEN_URL") or None,
-            oce_client_id=os.getenv("OCE_CLIENT_ID") or None,
-            oce_client_secret=os.getenv("OCE_CLIENT_SECRET") or None,
-            oce_scope=os.getenv("OCE_SCOPE") or None,
-            oce_api_token=os.getenv("OCE_API_TOKEN") or None,
             onetrust_base_url=_optional_url("ONETRUST_BASE_URL"),
             onetrust_token_url=os.getenv("ONETRUST_TOKEN_URL") or None,
             onetrust_client_id=os.getenv("ONETRUST_CLIENT_ID") or None,

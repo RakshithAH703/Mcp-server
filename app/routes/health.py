@@ -11,7 +11,7 @@ def health_check():
     return success_response(
         {
             "status": "ok",
-            "service": "oce-mcp-server",
+            "service": "onetrust-consent-mcp-server",
             "environment": settings.flask_env,
         }
     )

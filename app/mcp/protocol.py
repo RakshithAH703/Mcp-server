@@ -1,5 +1,5 @@
 MCP_PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME = "oce-crm-mcp-server"
+SERVER_NAME = "onetrust-consent-mcp-server"
 SERVER_VERSION = "1.0.0"
 
 

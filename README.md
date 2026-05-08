@@ -41,19 +41,10 @@ app/
     mcp_routes.py
   services/
     consent_service.py
-    crm_service.py
     onetrust_client.py
     onetrust_oauth.py
-    oauth.py
-    oce_client.py
   tools/
-    base.py
-    get_account_details.py
-    get_hcps_by_specialty.py
-    get_interaction_history.py
-    get_profile.py
     get_hcp_consent.py
-    search_hcp.py
   utils/
     errors.py
     logging.py
@@ -73,7 +64,7 @@ Active MCP tool for now:
 
 - `list_onetrust_consents`
 
-OCE CRM tools are present in `app/tools`, but disabled with `ENABLED = False` for now.
+This repository is OneTrust-only. Previous CRM tool modules and services were removed.
 
 Each tool defines:
 
@@ -143,7 +134,7 @@ Response:
 {
   "protocolVersion": "2024-11-05",
   "serverInfo": {
-    "name": "oce-crm-mcp-server",
+    "name": "onetrust-consent-mcp-server",
     "version": "1.0.0"
   },
   "capabilities": {
@@ -252,14 +243,6 @@ The active OneTrust MCP tool calls `ConsentService`, which calls `OneTrustClient
   -> OneTrust Consent API
 ```
 
-Disabled OCE paths kept for later:
-
-- `GET /api/{OCE_API_VERSION}/hcps/search`
-- `GET /api/{OCE_API_VERSION}/hcps/{hcp_id}/profile`
-- `GET /api/{OCE_API_VERSION}/hcps`
-- `GET /api/{OCE_API_VERSION}/accounts/{account_id}`
-- `GET /api/{OCE_API_VERSION}/hcps/{hcp_id}/interactions`
-
 OneTrust consent tool default path:
 
 - `GET /api/consentmanager/v1/datasubjects/profiles`
@@ -320,4 +303,4 @@ AWS:
 - PostgreSQL for audit/event history if required.
 - OpenTelemetry for traces across agent, MCP server, and OneTrust.
 - More tool modules under `app/tools`.
-- Contract tests with mocked OCE CRM responses.
+- Contract tests with mocked OneTrust consent responses.
