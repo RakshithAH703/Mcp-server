@@ -62,6 +62,7 @@ run.py
 
 Active MCP tool for now:
 
+- `list_onetrust_purposes`
 - `list_onetrust_consents`
 
 This repository is OneTrust-only. Previous CRM tool modules and services were removed.
@@ -87,13 +88,10 @@ ONETRUST_TOKEN_URL=https://your-tenant.onetrust.com/api/access/v1/oauth/token
 ONETRUST_CLIENT_ID=your-client-id
 ONETRUST_CLIENT_SECRET=your-client-secret
 ONETRUST_SCOPE=CONSENT_READ
-ONETRUST_PURPOSE_NAME=
-ONETRUST_PURPOSE_NAME_CONTAINS=mcp
-ONETRUST_DEFAULT_PURPOSE_ID=
 ONETRUST_TRUST_ENV_PROXY=false
 ```
 
-Purpose resolution is dynamic. If `ONETRUST_PURPOSE_NAME` is set, the server finds that exact OneTrust purpose label/name. Otherwise it searches for purposes whose label/name contains `ONETRUST_PURPOSE_NAME_CONTAINS`, which defaults to `mcp`. If multiple purposes match, the server returns a clear configuration error instead of guessing. `ONETRUST_DEFAULT_PURPOSE_ID` is only a fallback for older deployments.
+Purpose selection is dynamic. Agents should call `list_onetrust_purposes` first, then call `list_onetrust_consents` with the selected `purpose_id`, exact `purpose_name`, or a `purpose_name_contains` value that matches one purpose.
 
 Do not use your personal OneTrust email/password in this server. Use them only to log in to the OneTrust UI and create/manage OAuth client credentials. The server should use OAuth client credentials with least-privilege scopes.
 
@@ -161,11 +159,42 @@ Response:
 {
   "tools": [
     {
+      "name": "list_onetrust_purposes",
+      "description": "List OneTrust consent purposes so an agent can choose which purpose to use for consent lookup.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "default": 0
+          },
+          "size": {
+            "type": "integer",
+            "default": 20
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "list_onetrust_consents",
       "description": "List OneTrust consent and preference profiles.",
       "inputSchema": {
         "type": "object",
         "properties": {
+          "purpose_id": {
+            "type": "string"
+          },
+          "purpose_name": {
+            "type": "string"
+          },
+          "purpose_name_contains": {
+            "type": "string"
+          },
           "include_effective_status": {
             "type": "boolean",
             "default": true
@@ -201,8 +230,22 @@ Request:
 
 ```json
 {
+  "tool": "list_onetrust_purposes",
+  "arguments": {
+    "search": "MCP",
+    "page": 0,
+    "size": 20
+  }
+}
+```
+
+Then call:
+
+```json
+{
   "tool": "list_onetrust_consents",
   "arguments": {
+    "purpose_name": "MCP-Steride",
     "include_effective_status": true,
     "page": 0,
     "size": 20
@@ -210,7 +253,7 @@ Request:
 }
 ```
 
-The caller does not need to send a purpose ID. The server dynamically resolves the OneTrust purpose and sends the resolved `purposeGuid` internally.
+The caller does not need a hardcoded environment purpose ID. The agent can discover purposes at runtime and pass either `purpose_id`, exact `purpose_name`, or a `purpose_name_contains` value that resolves to exactly one purpose.
 
 Response:
 
