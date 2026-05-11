@@ -10,6 +10,7 @@ class Settings:
     host: str
     port: int
     log_level: str
+    cors_allowed_origins: list[str]
     mcp_api_key: str | None
     onetrust_base_url: str | None
     onetrust_token_url: str | None
@@ -32,6 +33,7 @@ class Settings:
             host=os.getenv("HOST", "0.0.0.0"),
             port=int(os.getenv("PORT", "8000")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+            cors_allowed_origins=_csv_env("CORS_ALLOWED_ORIGINS"),
             mcp_api_key=os.getenv("MCP_API_KEY") or None,
             onetrust_base_url=_optional_url("ONETRUST_BASE_URL"),
             onetrust_token_url=os.getenv("ONETRUST_TOKEN_URL") or None,
@@ -60,3 +62,10 @@ def _bool_env(name: str, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _csv_env(name: str) -> list[str]:
+    value = os.getenv(name)
+    if not value:
+        return []
+    return [item.strip().rstrip("/") for item in value.split(",") if item.strip()]

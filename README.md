@@ -58,6 +58,7 @@ APP_ENV=development
 HOST=0.0.0.0
 PORT=8000
 LOG_LEVEL=INFO
+CORS_ALLOWED_ORIGINS=https://mcp-web-page.vercel.app,http://localhost:5173,http://localhost:3000
 
 ONETRUST_BASE_URL=https://your-tenant.onetrust.com
 ONETRUST_TOKEN_URL=https://your-tenant.onetrust.com/api/access/v1/oauth/token
@@ -176,6 +177,14 @@ After deployment:
 https://your-service.onrender.com/health
 https://your-service.onrender.com/mcp
 ```
+
+For browser-based dashboards, set this Render environment variable to the exact frontend origins that can call the MCP server:
+
+```env
+CORS_ALLOWED_ORIGINS=https://mcp-web-page.vercel.app
+```
+
+Use comma-separated origins for multiple frontends. Do not include a trailing slash.
 
 ## Notes
 
