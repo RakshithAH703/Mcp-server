@@ -1,8 +1,6 @@
-Flask==3.0.3
+mcp[cli]==1.22.0
 python-dotenv==1.0.1
 requests==2.32.3
 urllib3==2.2.2
-gunicorn==22.0.0
-pydantic==2.8.2
 structlog==24.2.0
-jsonschema==4.23.0
+uvicorn>=0.31.0

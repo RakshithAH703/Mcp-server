@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 @dataclass(frozen=True)
 class Settings:
-    flask_env: str
+    environment: str
     host: str
     port: int
     log_level: str
@@ -28,7 +28,7 @@ class Settings:
     def from_env(cls) -> "Settings":
         load_dotenv()
         return cls(
-            flask_env=os.getenv("FLASK_ENV", "production"),
+            environment=os.getenv("APP_ENV", os.getenv("FLASK_ENV", "production")),
             host=os.getenv("HOST", "0.0.0.0"),
             port=int(os.getenv("PORT", "8000")),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -46,14 +46,6 @@ class Settings:
             onetrust_retry_backoff_factor=float(os.getenv("ONETRUST_RETRY_BACKOFF_FACTOR", "0.5")),
             onetrust_trust_env_proxy=_bool_env("ONETRUST_TRUST_ENV_PROXY", default=False),
         )
-
-    def to_flask_config(self) -> dict:
-        return {
-            "ENV": self.flask_env,
-            "HOST": self.host,
-            "PORT": self.port,
-            "JSON_SORT_KEYS": False,
-        }
 
 
 def _optional_url(name: str) -> str | None:

@@ -1,11 +1,11 @@
-from flask import current_app
-
 from app.config.settings import Settings
 from app.services.onetrust_client import OneTrustClient
 from app.utils.errors import BadRequestError
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+_consent_service: "ConsentService | None" = None
 
 
 class ConsentService:
@@ -57,22 +57,9 @@ class ConsentService:
         }
         return response
 
-    def list_purposes(self, search: str | None = None, page: int = 0, size: int = 20) -> dict:
-        if search:
-            matches = self._search_purposes(search)
-            start = page * size
-            end = start + size
-            paged_matches = matches[start:end]
-            return {
-                "purposes": paged_matches,
-                "page": page,
-                "size": size,
-                "numberOfElements": len(paged_matches),
-                "totalMatched": len(matches),
-                "empty": len(paged_matches) == 0,
-                "first": page == 0,
-                "last": end >= len(matches),
-            }
+    def list_purposes(self, search: str | None = None, page: int = 0, size: int = 50) -> dict:
+        page = max(page, 0)
+        size = _bounded_page_size(size)
 
         response = self.client.get(
             "api/consentmanager/v1/purposes",
@@ -80,27 +67,30 @@ class ConsentService:
         )
         purposes = [_purpose_summary(purpose) for purpose in _items(response)]
 
+        if search:
+            needle = search.strip().casefold()
+            purposes = [
+                purpose
+                for purpose in purposes
+                if needle in (purpose.get("name") or "").casefold()
+                or needle in (purpose.get("description") or "").casefold()
+            ]
+
         return {
             "purposes": purposes,
             "page": response.get("number", page),
             "size": response.get("size", size),
             "numberOfElements": len(purposes),
             "sourceNumberOfElements": response.get("numberOfElements"),
+            "totalElements": response.get("totalElements"),
+            "totalPages": response.get("totalPages"),
             "empty": len(purposes) == 0,
             "first": response.get("first"),
             "last": response.get("last"),
+            "nextPage": None if response.get("last") is True else response.get("number", page) + 1,
+            "search": search,
+            "searchScope": "current_page" if search else None,
         }
-
-    def _search_purposes(self, search: str) -> list[dict]:
-        needle = search.strip().casefold()
-        matches = []
-        for purpose in self._iter_purposes():
-            summary = _purpose_summary(purpose)
-            if needle in (summary.get("name") or "").casefold() or needle in (
-                summary.get("description") or ""
-            ).casefold():
-                matches.append(summary)
-        return matches
 
     def resolve_purpose(
         self,
@@ -209,11 +199,16 @@ class ConsentService:
             page += 1
 
 
-def get_consent_service() -> ConsentService:
-    if "consent_service" not in current_app.extensions:
-        settings = current_app.extensions["settings"]
-        current_app.extensions["consent_service"] = ConsentService(OneTrustClient(settings), settings)
-    return current_app.extensions["consent_service"]
+def create_consent_service(settings: Settings | None = None) -> ConsentService:
+    resolved_settings = settings or Settings.from_env()
+    return ConsentService(OneTrustClient(resolved_settings), resolved_settings)
+
+
+def get_consent_service(settings: Settings | None = None) -> ConsentService:
+    global _consent_service
+    if _consent_service is None:
+        _consent_service = create_consent_service(settings)
+    return _consent_service
 
 
 def _items(response: dict) -> list[dict]:
@@ -241,3 +236,9 @@ def _purpose_summary(purpose: dict) -> dict:
         "externalReference": _field(purpose, "ExternalReference", "externalReference"),
         "purposeType": _field(purpose, "PurposeType", "purposeType"),
     }
+
+
+def _bounded_page_size(size: int) -> int:
+    if size < 1:
+        return 50
+    return min(size, 100)

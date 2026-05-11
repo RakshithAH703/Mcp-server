@@ -1,116 +1,86 @@
 # OneTrust Consent MCP Server
 
-Standalone Flask-based MCP-style tool server for listing OneTrust consent and preference records. AI agents can initialize the server, discover available tools with JSON schemas, and invoke tools dynamically.
+Official MCP Python SDK server for OneTrust consent and purpose lookup.
+
+This project uses the official `mcp` Python SDK with `FastMCP` and Streamable HTTP transport. It is no longer a custom Flask-style MCP imitation.
 
 ```text
-AI Agent / n8n / Copilot / Claude / Custom LLM
-        -> MCP HTTP endpoints
-        -> OneTrust Consent MCP Server
-        -> OneTrust Consent APIs
-        -> structured tool result
+MCP Client / Agent
+        -> Streamable HTTP MCP endpoint: /mcp
+        -> FastMCP tools
+        -> OneTrust OAuth + Consent APIs
 ```
 
-This is not a REST CRUD proxy. The public interface is a tool protocol surface.
+## Tools
 
-## Capabilities
+The server exposes these official MCP tools:
 
-- `POST /mcp/initialize`
-- `GET /mcp/tools`
-- `POST /mcp/tools/call`
-- Dynamic tool discovery from `app/tools`
-- JSON schema input validation for every tool
-- OAuth2 client credentials flow for OneTrust
-- Automatic bearer token reuse and refresh
-- OneTrust retries, timeouts, and structured errors
-- Structured JSON logging
-- Docker and Docker Compose support
-- Stateless runtime ready for future Redis/PostgreSQL integration
+- `list_onetrust_purposes`
+- `list_onetrust_consents`
+
+Expected agent flow:
+
+```text
+1. Agent connects to /mcp
+2. Agent runs MCP initialize
+3. Agent runs tools/list
+4. Agent calls list_onetrust_purposes
+5. Agent chooses a purpose
+6. Agent calls list_onetrust_consents with purpose_id, purpose_name, or purpose_name_contains
+```
 
 ## Project Structure
 
 ```text
 app/
+  mcp_server.py              # Official FastMCP server and ASGI app
   config/
-    settings.py
-  mcp/
-    protocol.py
-    registry.py
-    schemas.py
-  routes/
-    health.py
-    mcp_routes.py
+    settings.py              # .env configuration
   services/
-    consent_service.py
-    onetrust_client.py
-    onetrust_oauth.py
-  tools/
-    get_hcp_consent.py
+    consent_service.py       # OneTrust purpose/consent business logic
+    onetrust_client.py       # OneTrust API client with retries/timeouts
+    onetrust_oauth.py        # OAuth2 client credentials token provider
   utils/
     errors.py
     logging.py
-    response.py
-    security.py
-    validation.py
 Dockerfile
 docker-compose.yml
 requirements.txt
-.env
 run.py
 ```
 
-## Tools
-
-Active MCP tool for now:
-
-- `list_onetrust_purposes`
-- `list_onetrust_consents`
-
-This repository is OneTrust-only. Previous CRM tool modules and services were removed.
-
-Each tool defines:
-
-- `name`
-- `description`
-- `inputSchema`
-- Python execution handler
-
-Tools are auto-registered from modules in `app/tools`. To add a new tool, create a new file with a `register(registry)` function and register a `ToolDefinition`.
-
 ## Environment
 
-Keep your local configuration in `.env`.
-
-Minimum OneTrust OAuth configuration for consent checks:
+Keep local secrets in `.env`. Do not commit `.env`.
 
 ```env
+APP_ENV=development
+HOST=0.0.0.0
+PORT=8000
+LOG_LEVEL=INFO
+
 ONETRUST_BASE_URL=https://your-tenant.onetrust.com
 ONETRUST_TOKEN_URL=https://your-tenant.onetrust.com/api/access/v1/oauth/token
 ONETRUST_CLIENT_ID=your-client-id
 ONETRUST_CLIENT_SECRET=your-client-secret
-ONETRUST_SCOPE=CONSENT_READ
+ONETRUST_SCOPE=
 ONETRUST_TRUST_ENV_PROXY=false
-```
 
-Purpose selection is dynamic. Agents should call `list_onetrust_purposes` first, then call `list_onetrust_consents` with the selected `purpose_id`, exact `purpose_name`, or a `purpose_name_contains` value that matches one purpose.
-
-Do not use your personal OneTrust email/password in this server. Use them only to log in to the OneTrust UI and create/manage OAuth client credentials. The server should use OAuth client credentials with least-privilege scopes.
-
-`MCP_API_KEY` is optional for local development. If set, callers must send:
-
-```http
-X-API-Key: your-key
+# Optional. If set, MCP requests must include X-API-Key.
+MCP_API_KEY=
 ```
 
 ## Run Locally
 
 ```powershell
+cd C:\Users\rakshith.ah\One-Trust-Mco
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python run.py
 ```
 
-Server URL:
+Server:
 
 ```text
 http://localhost:8000
@@ -119,234 +89,98 @@ http://localhost:8000
 Health check:
 
 ```http
-GET /health
+GET http://localhost:8000/health
 ```
 
-## MCP Requests
-
-### Initialize
-
-```http
-POST /mcp/initialize
-```
-
-Response:
-
-```json
-{
-  "protocolVersion": "2024-11-05",
-  "serverInfo": {
-    "name": "onetrust-consent-mcp-server",
-    "version": "1.0.0"
-  },
-  "capabilities": {
-    "tools": {
-      "listChanged": false
-    }
-  }
-}
-```
-
-### List Tools
-
-```http
-GET /mcp/tools
-```
-
-Response:
-
-```json
-{
-  "tools": [
-    {
-      "name": "list_onetrust_purposes",
-      "description": "List OneTrust consent purposes so an agent can choose which purpose to use for consent lookup.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "search": {
-            "type": "string"
-          },
-          "page": {
-            "type": "integer",
-            "default": 0
-          },
-          "size": {
-            "type": "integer",
-            "default": 20
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      }
-    },
-    {
-      "name": "list_onetrust_consents",
-      "description": "List OneTrust consent and preference profiles.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "purpose_id": {
-            "type": "string"
-          },
-          "purpose_name": {
-            "type": "string"
-          },
-          "purpose_name_contains": {
-            "type": "string"
-          },
-          "include_effective_status": {
-            "type": "boolean",
-            "default": true
-          },
-          "page": {
-            "type": "integer",
-            "minimum": 0,
-            "default": 0
-          },
-          "size": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 50,
-            "default": 20
-          }
-        },
-        "required": [],
-        "additionalProperties": false
-      }
-    }
-  ]
-}
-```
-
-### Call Tool
-
-```http
-POST /mcp/tools/call
-Content-Type: application/json
-```
-
-Request:
-
-```json
-{
-  "tool": "list_onetrust_purposes",
-  "arguments": {
-    "search": "MCP",
-    "page": 0,
-    "size": 20
-  }
-}
-```
-
-Then call:
-
-```json
-{
-  "tool": "list_onetrust_consents",
-  "arguments": {
-    "purpose_name": "MCP-Steride",
-    "include_effective_status": true,
-    "page": 0,
-    "size": 20
-  }
-}
-```
-
-The caller does not need a hardcoded environment purpose ID. The agent can discover purposes at runtime and pass either `purpose_id`, exact `purpose_name`, or a `purpose_name_contains` value that resolves to exactly one purpose.
-
-Response:
-
-```json
-{
-  "tool": "list_onetrust_consents",
-  "content": [
-    {
-      "type": "json",
-      "json": {
-        "items": []
-      }
-    }
-  ],
-  "isError": false
-}
-```
-
-## Tool Mapping
-
-The active OneTrust MCP tool calls `ConsentService`, which calls `OneTrustClient`.
+Official MCP endpoint:
 
 ```text
-/mcp/tools/call
-  -> ToolRegistry.call()
-  -> app/tools/<tool>.py handler
-  -> ConsentService
-  -> OneTrustClient
-  -> OneTrust Consent API
+http://localhost:8000/mcp
 ```
 
-OneTrust purpose discovery path:
+## Test With MCP Inspector
 
-- `GET /api/consentmanager/v1/purposes`
-
-OneTrust consent tool path:
-
-- `GET /api/consentmanager/v1/datasubjects/profiles`
-
-The tool resolves `purposeGuid` dynamically, then sends `purposeGuid`, `includeEffectiveStatus`, `properties=ignoreCount`, `page`, and `size`.
-
-## Test With Postman
-
-1. Start the server with `python run.py`.
-2. Send `POST http://localhost:8000/mcp/initialize`.
-3. Send `GET http://localhost:8000/mcp/tools`.
-4. Send `POST http://localhost:8000/mcp/tools/call` with a tool request body.
-5. If `MCP_API_KEY` is set, add `X-API-Key` to each MCP request.
-
-## Docker
+Start the server:
 
 ```powershell
-docker compose up --build
+python run.py
 ```
 
-The container reads `.env`, exposes port `8000`, and runs with Gunicorn.
-
-Stop:
+Then run MCP Inspector:
 
 ```powershell
-docker compose down
+npx -y @modelcontextprotocol/inspector
 ```
 
-## Deploy Later
+Connect to:
 
-Render/Railway:
+```text
+http://localhost:8000/mcp
+```
 
-- Connect GitHub repo.
-- Use Docker deployment.
-- Add all environment variables in the platform dashboard.
-- Expose port from `$PORT` or `8000` depending on platform configuration.
+If `MCP_API_KEY` is configured, add this header in the client:
 
-AWS:
+```http
+X-API-Key: your-key
+```
 
-- Use ECS Fargate, App Runner, or Elastic Beanstalk.
-- Store secrets in AWS Secrets Manager or SSM Parameter Store.
-- Put the service behind HTTPS, API Gateway/ALB, and WAF if public.
+## Tool Inputs
 
-## Security
+`list_onetrust_purposes`
 
-- Do not commit `.env`.
-- Keep OneTrust credentials only on the MCP server.
-- Use OAuth2 client credentials for OneTrust; personal email/password should not be used for server API calls.
-- Set `MCP_API_KEY` before public deployment.
-- Use HTTPS in every deployed environment.
-- Apply least-privilege OneTrust scopes.
-- Avoid logging PHI/PII.
-- Add rate limiting before external exposure.
+```json
+{
+  "page": 0,
+  "size": 50
+}
+```
 
-## Future Scaling
+Optional `search` filters only the current page returned from OneTrust, so agents should page with `nextPage` until `last` is `true` when they need to inspect every purpose.
 
-- Redis for distributed OAuth token cache and rate limits.
-- PostgreSQL for audit/event history if required.
-- OpenTelemetry for traces across agent, MCP server, and OneTrust.
-- More tool modules under `app/tools`.
-- Contract tests with mocked OneTrust consent responses.
+`list_onetrust_consents`
+
+```json
+{
+  "purpose_id": "purpose-guid-from-list_onetrust_purposes",
+  "include_effective_status": true,
+  "page": 0,
+  "size": 20
+}
+```
+
+Name-based lookup is available, but `purpose_id` is recommended because it avoids extra OneTrust purpose scanning:
+
+```json
+{
+  "purpose_name": "MCP-Steride",
+  "page": 0,
+  "size": 20
+}
+```
+
+## Render Deployment
+
+Deploy as a Render Web Service using Docker.
+
+Set environment variables in Render dashboard, not in source control.
+
+Docker runs:
+
+```bash
+uvicorn app.mcp_server:app --host 0.0.0.0 --port ${PORT:-8000}
+```
+
+After deployment:
+
+```text
+https://your-service.onrender.com/health
+https://your-service.onrender.com/mcp
+```
+
+## Notes
+
+- This is an official MCP SDK implementation using `mcp.server.fastmcp.FastMCP`.
+- Streamable HTTP is served at `/mcp`.
+- OneTrust credentials stay server-side.
+- The browser/frontend should not store OneTrust credentials.
+- For production, set `MCP_API_KEY` and require clients to send `X-API-Key`.

@@ -1,8 +1,11 @@
-from app import create_app
+import os
 
-
-app = create_app()
+import uvicorn
 
 
 if __name__ == "__main__":
-    app.run(host=app.config["HOST"], port=app.config["PORT"])
+    uvicorn.run(
+        "app.mcp_server:app",
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+    )
